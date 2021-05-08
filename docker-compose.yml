@@ -1,0 +1,75 @@
+version: '3.7'
+
+services:
+
+  traefik:
+    image: traefik:1.7
+    command: --docker --docker.exposedbydefault=false
+    ports:
+      - "8001:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  app:
+    image: thecodingmachine/php:7.3.28-v4-apache-node14
+    labels:
+      - traefik.enable=true
+      - traefik.backend=app
+      - traefik.frontend.rule=Host:app.localhost
+    ports:
+      - "8000:80"
+    depends_on: 
+      - mysql
+    environment:
+      APACHE_DOCUMENT_ROOT: "public/"
+      PHP_EXTENSION_XDEBUG: "1"
+      PHP_INI_MEMORY_LIMIT: "1G"
+  
+    volumes:
+      - ./sources/app:/var/www/html:rw
+    restart: always
+
+  mysql:
+    image: "mysql:8.0"
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always  
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: symfony_db  
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - "6030:3306"
+
+  phpmyadmin:
+    image: 'phpmyadmin/phpmyadmin:4.7'
+    container_name: sf5_phpmyadmin
+    labels:
+      - traefik.enable=true
+      - traefik.backend=phpmyadmin
+      - traefik.frontend.rule=Host:phpmyadmin.app.localhost
+    ports:
+      - "8080:80"
+    links:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      MYSQL_USERNAME: root
+      MYSQL_ROOT_PASSWORD: root
+      
+  maildev:
+    image: maildev/maildev
+    container_name: maildev_docker_symfony
+    command: bin/maildev --web 80 --smtp 25 --hide-extensions STARTTLS
+    ports:
+      - "8081:80"
+    restart: always
+    networks:
+      - dev
+
+networks:
+  dev:
+
+volumes:
+  mysql_data:
+    driver: local
